@@ -3,6 +3,7 @@ set -euo pipefail
 
 echo "::group::Installing Emscripten"
 ./build/install_emcc.sh
+source "/opt/emsdk/emsdk_env.sh"
 echo "::endgroup::"
 
 echo "::group::Installing wasm-pack"
