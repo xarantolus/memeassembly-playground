@@ -9,6 +9,7 @@ env:
 
 jobs:
   build:
+    name: Deploy
 
     runs-on: ubuntu-latest
 
@@ -30,3 +31,5 @@ jobs:
         build_dir: .
         fqdn: memeasm.010.one
         jekyll: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
