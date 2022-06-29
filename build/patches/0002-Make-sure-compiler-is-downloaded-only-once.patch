@@ -1,0 +1,50 @@
+From ffc5a6bbec8d5a8ec96b637ec796d3610b1a82a9 Mon Sep 17 00:00:00 2001
+From: xarantolus <xarantolus@protonmail.com>
+Date: Tue, 21 Jun 2022 07:14:07 +0200
+Subject: [PATCH 2/2] Make sure compiler is downloaded only once
+
+---
+ Makefile           | 4 ++--
+ compiler/memeasm.c | 4 ++++
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index aca0620..24c0abe 100644
+--- a/Makefile
++++ b/Makefile
+@@ -23,7 +23,7 @@ DESTDIR=/usr/local/bin
+ # Files to compile
+ FILES=compiler/memeasm.c compiler/compiler.c compiler/logger/log.c compiler/parser/parser.c compiler/parser/fileParser.c compiler/parser/functionParser.c compiler/analyser/analysisHelper.c compiler/analyser/parameters.c compiler/analyser/functions.c compiler/analyser/jumpMarkers.c compiler/analyser/comparisons.c compiler/analyser/randomCommands.c compiler/analyser/analyser.c compiler/translator/translator.c
+ 
+-.PHONY: all clean debug uninstall install windows wasm
++.PHONY: all clean debug uninstall install windows wasm wasm/memeasm.js
+ 
+ # Standard compilation
+ all:
+@@ -31,7 +31,7 @@ all:
+ 
+ wasm: wasm/memeasm.js
+ wasm/memeasm.js:
+-	$(CC_wasm) -o $@ -s WASM=1 -s EXPORT_ES6=1 -s MODULARIZE=1 -s EXPORTED_RUNTIME_METHODS="['FS', 'callMain']" -s 'EXPORT_NAME="runMemeAssemblyCompiler"' $(FILES) $(CFLAGS)
++	$(CC_wasm) -o $@ -s WASM=1 -s INVOKE_RUN=0 -s EXPORT_ES6=1 -s MODULARIZE=1 -s EXPORTED_RUNTIME_METHODS="['FS', 'callMain', 'cwrap']" -s 'EXPORT_NAME="runMemeAssemblyCompiler"' $(FILES) $(CFLAGS)
+ 
+ # Compilation with debugging-flags
+ debug:
+diff --git a/compiler/memeasm.c b/compiler/memeasm.c
+index 487eda3..dacd40d 100644
+--- a/compiler/memeasm.c
++++ b/compiler/memeasm.c
+@@ -85,6 +85,10 @@ int main(int argc, char* argv[]) {
+     int opt;
+     int option_index = 0;
+ 
++    // On normal systems one wouldn't have to reset optind, but the WebAssembly version
++    // requires global variables to be reset; else option parsing wouldn't work when calling main again
++    optind = 1;
++
+     while ((opt = getopt_long_only(argc, argv, "o:hOdigS", long_options, &option_index)) != -1) {
+         switch (opt) {
+             case 'h':
+-- 
+2.25.1
+
