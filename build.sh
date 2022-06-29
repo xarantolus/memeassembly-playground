@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Create output dir
+mkdir -p dependencies
+
 echo "::group::Installing Emscripten"
 ./build/install_emcc.sh
 source "/opt/emsdk/emsdk_env.sh"
