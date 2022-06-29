@@ -1,0 +1,30 @@
+name: Build & Deploy to GH Pages
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: "Check out repo"
+      uses: actions/checkout@v3
+    
+    - name: "Run build scripts"
+      run: |
+        chmod +x build.sh build/*.sh
+        ./build.sh
+        
+    - name: Deploy
+      uses: crazy-max/ghaction-github-pages@v3.0.0
+      with:
+        keep_history: false
+        build_dir: .
+        fqdn: memeasm.010.one
+        jekyll: false
