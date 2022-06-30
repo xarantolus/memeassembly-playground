@@ -35,6 +35,8 @@ export async function executeMemeAssemblyCode(
     const stack_start = 0x10000;
     const data_start = 0x1000;
 
+    console.log("Translated output:\n", x86Code);
+
     let x86Assembled = await assembleX86Assembly(x86Code, BigInt(code_start), BigInt(data_start), "main");
     /*
     x86Assembled = {
@@ -58,19 +60,12 @@ export async function executeMemeAssemblyCode(
         ]
     }
     */
+    console.log("Compiled output:\n", x86Assembled);
 
     let interpretableCode = Uint8Array.from(x86Assembled.code);
 
     // Initialize engine
     var unicorn_engine = new uc.Unicorn(uc.ARCH_X86, uc.MODE_64);
-
-    // Add a hook for syscalls
-    unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
-        console.log("better syscall!")
-
-        // TODO: Call functions depending on syscall values
-    }, null, 1, 0, uc.X86_INS_SYSCALL);
-
 
     let handled_mem_evts = uc.HOOK_MEM_READ_UNMAPPED
         | uc.HOOK_MEM_WRITE_UNMAPPED
@@ -79,6 +74,7 @@ export async function executeMemeAssemblyCode(
         | uc.HOOK_MEM_WRITE_PROT
         | uc.HOOK_MEM_FETCH_PROT;
     let map = {};
+
     map[uc.HOOK_MEM_READ_UNMAPPED] = "HOOK_MEM_READ_UNMAPPED";
     map[uc.HOOK_MEM_WRITE_UNMAPPED] = "HOOK_MEM_WRITE_UNMAPPED";
     map[uc.HOOK_MEM_FETCH_UNMAPPED] = "HOOK_MEM_FETCH_UNMAPPED";
@@ -86,24 +82,44 @@ export async function executeMemeAssemblyCode(
     map[uc.HOOK_MEM_WRITE_PROT] = "HOOK_MEM_WRITE_PROT";
     map[uc.HOOK_MEM_FETCH_PROT] = "HOOK_MEM_FETCH_PROT";
 
-    // This hook prevents crashing when we pop an invalid address from the stack at the end
-    unicorn_engine.hook_add(uc.HOOK_CODE, function(handle, addr_lo, addr_hi, size) {
-        if (size < 0) {
-            console.log("Accessed instructions at the marked end return point, so now it's over")
-            handle.emu_stop();
-            return;
-        }
-    }, null, 1, 0)
+    let normal_end = false;
 
     // Log invalid memory accesses
-    unicorn_engine.hook_add(handled_mem_evts,
-        function (handle, access, addr, size, value) {
-            let info = map[access];
+    unicorn_engine.hook_add(handled_mem_evts, function (handle, access, addr, size, value) {
 
-            console.log("Invalid", info || "(unknown)", "access of size", size, "to address", hex(addr));
+        if (addr == base_return_addr && size <= 0) {
+            console.log("Accessed instructions at the marked end return point, so now it's over")
+            normal_end = true;
+            handle.emu_stop();
+            return true;
+        }
 
-            return false;
-        }, null, 0, 0);
+        let info = map[access];
+        console.log("Invalid", info || "(unknown)", "access of size", size, "to address", hex(addr));
+
+
+        return false;
+    });
+
+    // This hook prevents crashing when we pop an invalid address from the stack at the end
+    unicorn_engine.hook_add(uc.HOOK_CODE, function (handle, addr_lo, addr_hi, size) {
+        console.log(addr_lo, addr_hi, size);
+
+        if (addr_lo == base_return_addr && addr_hi == 0 && size <= 0) {
+            console.log("Accessed instructions at the marked end return point, so now it's over")
+            handle.emu_stop();
+            normal_end = true;
+            return;
+        }
+    });
+
+    // Add a hook for syscalls
+    unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
+        console.log("better syscall!")
+
+        // TODO: Call functions depending on syscall values
+    }, null, 1, 0, uc.X86_INS_SYSCALL);
+
 
     console.log("Creating data section, start =", hex(data_start), "minSize =", x86Assembled.data_section_size);
     unicorn_engine.mem_map(data_start, next_page_size(x86Assembled.data_section_size), uc.PROT_ALL);
@@ -128,7 +144,13 @@ export async function executeMemeAssemblyCode(
 
     // Start at the entry point (usually the "main" symbol)
     console.log("Executing code starting at", hex(code_start), ", setting rip for main to", hex(x86Assembled.entrypoint_address), "(offset", x86Assembled.entrypoint_address - code_start + ")");
-    unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, 0);
+    try {
+        unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, 0);
+    } catch(e) {
+        if (!normal_end) {
+            throw e;
+        }
+    }
 
     // Program output
     var irax = unicorn_engine.reg_read_i64(uc.X86_REG_RAX);
