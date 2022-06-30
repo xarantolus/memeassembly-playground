@@ -5,6 +5,23 @@ function next_page_size(byte_size) {
     return Math.ceil(byte_size / 4096) * 4096
 }
 
+function hex(addr) {
+    return "0x" + addr.toString(16);
+}
+
+const base_return_arr = Uint8Array.from([0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+const base_return_addr = 0x9000;
+
+function generate_arr(length) {
+
+    let arr = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+        arr[i] = base_return_arr[i % base_return_arr.length];
+    }
+
+    return arr;
+}
+
 export async function executeMemeAssemblyCode(
     codeInput,
     lineCallback,
@@ -47,40 +64,73 @@ export async function executeMemeAssemblyCode(
     // Initialize engine
     var unicorn_engine = new uc.Unicorn(uc.ARCH_X86, uc.MODE_64);
 
-    unicorn_engine.hook_add(uc.HOOK_CODE, function (handle, user_data) {
-        // RIP in this case points current instruction, let's see if it's a syscall
-        var rip = handle.reg_read_i64(uc.X86_REG_RIP);
-        var mem = handle.mem_read(rip, 2);
+    // Add a hook for syscalls
+    unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
+        console.log("better syscall!")
 
-        // Syscall: 0x0f05
-        // Technically there might be a longer instruction that starts with this, but I don't care
-        if (mem[0] == 0xf && mem[1] == 0x5) {
-            console.log("syscall!")
+        // TODO: Call functions depending on syscall values
+    }, null, 1, 0, uc.X86_INS_SYSCALL);
+
+
+    let handled_mem_evts = uc.HOOK_MEM_READ_UNMAPPED
+        | uc.HOOK_MEM_WRITE_UNMAPPED
+        | uc.HOOK_MEM_FETCH_UNMAPPED
+        | uc.HOOK_MEM_READ_PROT
+        | uc.HOOK_MEM_WRITE_PROT
+        | uc.HOOK_MEM_FETCH_PROT;
+    let map = {};
+    map[uc.HOOK_MEM_READ_UNMAPPED] = "HOOK_MEM_READ_UNMAPPED";
+    map[uc.HOOK_MEM_WRITE_UNMAPPED] = "HOOK_MEM_WRITE_UNMAPPED";
+    map[uc.HOOK_MEM_FETCH_UNMAPPED] = "HOOK_MEM_FETCH_UNMAPPED";
+    map[uc.HOOK_MEM_READ_PROT] = "HOOK_MEM_READ_PROT";
+    map[uc.HOOK_MEM_WRITE_PROT] = "HOOK_MEM_WRITE_PROT";
+    map[uc.HOOK_MEM_FETCH_PROT] = "HOOK_MEM_FETCH_PROT";
+
+    // This hook prevents crashing when we pop an invalid address from the stack at the end
+    unicorn_engine.hook_add(uc.HOOK_CODE, function(handle, addr_lo, addr_hi, size) {
+        if (size < 0) {
+            console.log("Accessed instructions at the marked end return point, so now it's over")
+            handle.emu_stop();
+            return;
         }
-    }, null, 1, 0);
+    }, null, 1, 0)
 
-    console.log("Creating data space");
-    unicorn_engine.mem_map(data_start, next_page_size(x86Assembled.data_section_size));
+    // Log invalid memory accesses
+    unicorn_engine.hook_add(handled_mem_evts,
+        function (handle, access, addr, size, value) {
+            let info = map[access];
+
+            console.log("Invalid", info || "(unknown)", "access of size", size, "to address", hex(addr));
+
+            return false;
+        }, null, 0, 0);
+
+    console.log("Creating data section, start =", hex(data_start), "minSize =", x86Assembled.data_section_size);
+    unicorn_engine.mem_map(data_start, next_page_size(x86Assembled.data_section_size), uc.PROT_ALL);
 
     // Set up some stack space & set ptr in RSP
-    console.log("Creating stack space");
     let stack_len = 8 * 1024;
-    unicorn_engine.mem_map(stack_start, next_page_size(stack_len));
-    unicorn_engine.reg_write_i64(uc.X86_REG_RSP, stack_start + stack_len - 8);
+    console.log("Creating stack space, start =", hex(stack_start), "minSize =", stack_len);
+    unicorn_engine.mem_map(stack_start, next_page_size(stack_len), uc.PROT_ALL);
+    unicorn_engine.mem_write(stack_start, generate_arr(stack_len));
+
+
+    let initial_rsp = stack_start + stack_len - 8;
+    unicorn_engine.reg_write_i64(uc.X86_REG_RSP, initial_rsp);
 
     // Write the code to memory
-    console.log("Writing code to memory");
+    console.log("Writing", interpretableCode.length, "bytes of code to memory");
     unicorn_engine.mem_map(x86Assembled.code_start_address, next_page_size(interpretableCode.length), uc.PROT_ALL);
     unicorn_engine.mem_write(x86Assembled.code_start_address, interpretableCode);
 
+    // 0x11ff8 = 0x10000 + 0x01ff8
 
 
     // Start at the entry point (usually the "main" symbol)
-    console.log("Executing code...");
+    console.log("Executing code starting at", hex(code_start), ", setting rip for main to", hex(x86Assembled.entrypoint_address), "(offset", x86Assembled.entrypoint_address - code_start + ")");
     unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, 0);
 
     // Program output
     var irax = unicorn_engine.reg_read_i64(uc.X86_REG_RAX);
     console.log("RAX value:", irax);
 }
-

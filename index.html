@@ -78,9 +78,7 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
     <script type="module">
         import { executeMemeAssemblyCode } from './scripts/execute.js';
 
-        window.t = executeMemeAssemblyCode;
-        window.tt = function () {
-            executeMemeAssemblyCode(`I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
+        const alphabet = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
     eax is brilliant, but I like 65
 
     upgrade
@@ -93,8 +91,20 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
     they're the same picture
     what can I say except \\n
 
-    I see this as an absolute win`, console.log);
+    I see this as an absolute win`;
+
+    const syscall = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
+            rax is brilliant, but I like 65
+            we need air support
+            I see this as an absolute win`
+
+
+        window.t = executeMemeAssemblyCode;
+        window.tt = function () {
+            executeMemeAssemblyCode(syscall, console.log);
         }
+
+        tt();
     </script>
 </body>
 
