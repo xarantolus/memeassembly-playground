@@ -103,9 +103,20 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
             what can I say except a
             I see this as an absolute win`;
 
+            const inf_loop = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
+    upgrade
+
+            rax is brilliant, but I like 65
+
+
+    fuck go back
+
+    I see this as an absolute win`;
+
+
         window.t = executeMemeAssemblyCode;
         window.tt = function () {
-            executeMemeAssemblyCode(syscall, console.log);
+            executeMemeAssemblyCode(inf_loop, console.log, console.log);
         }
 
         tt();

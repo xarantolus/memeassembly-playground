@@ -86,7 +86,6 @@ export async function executeMemeAssemblyCode(
 
     // Log invalid memory accesses
     unicorn_engine.hook_add(handled_mem_evts, function (handle, access, addr, size, value) {
-
         if (addr == base_return_addr && size <= 0) {
             console.log("Accessed instructions at the marked end return point, so now it's over")
             normal_end = true;
@@ -97,14 +96,11 @@ export async function executeMemeAssemblyCode(
         let info = map[access];
         console.log("Invalid", info || "(unknown)", "access of size", size, "to address", hex(addr));
 
-
         return false;
     });
 
     // This hook prevents crashing when we pop an invalid address from the stack at the end
     unicorn_engine.hook_add(uc.HOOK_CODE, function (handle, addr_lo, addr_hi, size) {
-        console.log(addr_lo, addr_hi, size);
-
         if (addr_lo == base_return_addr && addr_hi == 0 && size <= 0) {
             console.log("Accessed instructions at the marked end return point, so now it's over")
             handle.emu_stop();
@@ -115,9 +111,47 @@ export async function executeMemeAssemblyCode(
 
     // Add a hook for syscalls
     unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
-        console.log("better syscall!")
+        let syscall_num = handle.reg_read_i64(uc.X86_REG_RAX);
+        let rdi = handle.reg_read_i64(uc.X86_REG_RDI);
+        let rsi = handle.reg_read_i64(uc.X86_REG_RSI);
+        let rdx = handle.reg_read_i64(uc.X86_REG_RDX);
 
-        // TODO: Call functions depending on syscall values
+        switch (syscall_num) {
+            case 0: {
+                // READ syscall MUST read from stdin
+                if (rdi != 0) {
+                    throw 'READ syscall: cannot read from non-stdin (!= 0) fds, but tried ' + rdi;
+                }
+
+                // Ask for 'count' in rdx elements, should return string of that length
+                // TODO: What happens if we input multi-byte chars? On linux this just leads to two 1-byte read-syscalls for MemeAssembly code; so maybe add a buffer here
+                let result = syscallRead(rdx);
+
+                let result_bytes = new TextEncoder().encode(result);
+
+                // Write at most rdx bytes of result
+                handle.mem_write(rsi, result_bytes.slice(0, rdx));
+
+                break;
+            }
+            case 1: {
+                // WRITE syscall MUST write to stdout or stderr
+                // Actually this also supports also "writing" to stdin, as this also works in certain circumstances: https://stackoverflow.com/a/7680234
+                if (rdi != 0 && rdi != 1 && rdi != 2) {
+                    throw 'WRITE syscall: cannot write non-std{out,err} (!= 1,2) fds, but tried ' + rdi;
+                }
+
+                let result_buf = handle.mem_read(rsi, rdx);
+
+                let result_str = new TextDecoder().decode(result_buf);
+
+                syscallWrite(result_str);
+
+                break;
+            }
+            default:
+                throw 'Syscall: unsupported RAX value ' + syscall_num;
+        }
     }, null, 1, 0, uc.X86_INS_SYSCALL);
 
 
@@ -145,8 +179,14 @@ export async function executeMemeAssemblyCode(
     // Start at the entry point (usually the "main" symbol)
     console.log("Executing code starting at", hex(code_start), ", setting rip for main to", hex(x86Assembled.entrypoint_address), "(offset", x86Assembled.entrypoint_address - code_start + ")");
     try {
-        unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, 0);
-    } catch(e) {
+        // The timeout option doesn't work in webassembly; however we can restrict the number of instructions to run (in case of infinite loops)
+        let max_instructions = 500000;
+        unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, max_instructions);
+
+        if (!normal_end) {
+            throw 'Max instruction count of ' + max_instructions + ' exceeded (infinite loop protection)';
+        }
+    } catch (e) {
         if (!normal_end) {
             throw e;
         }
