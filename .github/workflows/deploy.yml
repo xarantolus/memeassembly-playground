@@ -24,12 +24,8 @@ jobs:
         chmod +x build.sh build/*.sh
         ./build.sh
 
-    - name: Deploy
-      uses: crazy-max/ghaction-github-pages@v3.0.0
+    - name: Deploy 🚀
+      uses: JamesIves/github-pages-deploy-action@v4
       with:
-        keep_history: false
-        build_dir: .
-        fqdn: memeasm.010.one
-        jekyll: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        single-commit: true
+        folder: .
