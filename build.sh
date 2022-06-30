@@ -13,6 +13,11 @@ echo "::group::Installing wasm-pack"
 ./build/install_wasm_pack.sh
 echo "::endgroup::"
 
+
+echo "::group::Installing xterm.js"
+./build/install_xtermjs.sh
+echo "::endgroup::"
+
 echo "::group::Building MemeAssembly"
 ./build/build_memeassembly.sh
 echo "::endgroup::"

@@ -193,6 +193,6 @@ export async function executeMemeAssemblyCode(
     }
 
     // Program output
-    var irax = unicorn_engine.reg_read_i64(uc.X86_REG_RAX);
+    let irax = unicorn_engine.reg_read_i64(uc.X86_REG_RAX);
     console.log("RAX value:", irax);
 }

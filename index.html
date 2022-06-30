@@ -8,6 +8,8 @@
     <title>MemeAssembly WASM Compiler</title>
 
     <script src="dependencies/unicorn-x86.min.js"></script>
+    <link rel="stylesheet" href="dependencies/xterm.css" />
+    <script src="dependencies/xterm.js"></script>
 </head>
 
 <body>
@@ -28,8 +30,11 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
 
     I see this as an absolute win
     </textarea>
-        <textarea readonly id="compiler-output" placeholder="There's currently no compiler output"></textarea>
-        <textarea readonly id="output-text" placeholder="No generated code so far or error. See compiler output for more info"></textarea>
+        <div id="terminal"></div>
+
+        <div id="options">
+            <button id="run-button">Run</button>
+        </div>
     </div>
     <style>
         html,
@@ -63,63 +68,65 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
         }
 
         #input-text {
-            grid-area: 1 / 1 / 5 / 4;
+            grid-area: 1 / 1 / 5 / 6;
         }
 
-        #compiler-output {
-            grid-area: 5 / 1 / 6 / 4;
+        #terminal {
+            grid-area: 5 / 2 / 6 / 6;
         }
 
-        #output-text {
-            grid-area: 1 / 4 / 6 / 6;
+        #options {
+            grid-area: 5 / 1 / 6 / 2;
         }
     </style>
 
     <script type="module">
         import { executeMemeAssemblyCode } from './scripts/execute.js';
 
-        const alphabet = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
-    eax is brilliant, but I like 65
-
-    upgrade
-    what can I say except al
-    what can I say except \\s
-    upvote eax
-    corporate needs you to find the difference between eax and 91
-    fuck go back
-
-    they're the same picture
-    what can I say except \\n
-
-    I see this as an absolute win`;
-
-        const syscall = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
-            rax is brilliant, but I like 65
-            we need air support
-            I see this as an absolute win`;
+        let termInputAllowed = false;
 
 
-        const simple_write = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
-            what can I say except a
-            I see this as an absolute win`;
+        var term = new Terminal();
+        term.open(document.getElementById('terminal'));
+        term.write('This is the MemeAssembly terminal. Run your code to see some output.\n\r');
 
-            const inf_loop = `I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
-    upgrade
+        let setInputAllowed = function (allowed) {
+            termInputAllowed = allowed;
+            term.setOption('cursorBlink', allowed);
+        };
 
-            rax is brilliant, but I like 65
+        let normalizeKey = function (key) {
+            if (key === '\r' || key === '\n') {
+                return '\n\r';
+            }
+            return key;
+        };
 
+        term.onKey(function (e) {
+            if (!termInputAllowed) return;
+            term.write(normalizeKey(e.key));
+        });
 
-    fuck go back
-
-    I see this as an absolute win`;
-
-
-        window.t = executeMemeAssemblyCode;
-        window.tt = function () {
-            executeMemeAssemblyCode(inf_loop, console.log, console.log);
+        function writeWrap(str) {
+            term.write(normalizeKey(str));
+        }
+        function writeLineWrap(str) {
+            term.write(str.trimEnd() + '\n\r');
         }
 
-        tt();
+        async function executeInput() {
+            let input = document.querySelector('#input-text');
+
+            await executeMemeAssemblyCode(input.value,
+                writeLineWrap,
+                writeWrap,
+                function () {
+                    return "a";
+                }
+            );
+        }
+
+        document.querySelector("#run-button").addEventListener('click', () => executeInput());
     </script>
 </body>
 
