@@ -23,6 +23,7 @@ jobs:
         git config --global user.name "GitHub Actions"
         chmod +x build.sh build/*.sh
         ./build.sh
+        rm -f .gitignore
 
     - name: Deploy 🚀
       uses: JamesIves/github-pages-deploy-action@v4
