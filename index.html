@@ -113,7 +113,7 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
             term.write(normalizeKey(str));
         }
         function writeLineWrap(str) {
-            term.write(str.trimEnd() + '\n\r');
+            term.write(str.trimEnd().replace("\n", "\n\r") + '\n\r');
         }
 
         async function executeInput() {
