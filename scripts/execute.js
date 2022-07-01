@@ -1,4 +1,3 @@
-import { translateMemeAssemblyCode } from './translate.js';
 import { assembleX86Assembly } from './assemble.js';
 
 function next_page_size(byte_size) {
@@ -23,6 +22,7 @@ function generate_arr(length) {
 }
 
 export async function executeMemeAssemblyCode(
+    translateMemeAssemblyCode,
     codeInput,
     lineCallback,
     syscallWrite,
