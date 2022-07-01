@@ -2,12 +2,21 @@ import runMemeAssemblyCompiler from "../dependencies/memeasm.js";
 
 const args = ["-fno-martyrdom", "-S", "-o", "output.S", "input.memeasm"];
 
+let printFunction = null;
+function printWrap(str) {
+    if (printFunction) {
+        printFunction(str);
+    } else {
+        console.log("no print function set for compiler")
+    }
+}
+
 // Download & compile WebAssembly binary
 let module = await runMemeAssemblyCompiler({
     noInitialRun: true,
     arguments: args,
-    print: null,
-    printErr: null,
+    print: printWrap,
+    printErr: printWrap,
 });
 
 await module.ready;
@@ -17,8 +26,8 @@ await module.ready;
 export async function translateMemeAssemblyCode(code, outputCallback) {
     async function runCompiler() {
         module.calledRun = false;
-        module.print = outputCallback;
-        module.printErr = outputCallback;
+
+        printFunction = outputCallback;
 
         // Write the input file
         await module.FS.writeFile("input.memeasm", code);
