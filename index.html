@@ -83,13 +83,47 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
         }
     </style>
 
+    <script>
+        var terminalTheme =  {
+                foreground: '#EAEAEA',
+                background: '#121110',
+                cursor: '#d0d0d0',
+
+                black: '#000000',
+                brightBlack: '#000000',
+
+                red: '#fd5ff1',
+                brightRed: '#fd5ff1',
+
+                green: '#87c38a',
+                brightGreen: '#94fa36',
+
+                yellow: '#ffd7b1',
+                brightYellow: '#f5ffa8',
+
+                blue: '#85befd',
+                brightBlue: '#96cbfe',
+
+                magenta: '#b9b6fc',
+                brightMagenta: '#b9b6fc',
+
+                cyan: '#85befd',
+                brightCyan: '#85befd',
+
+                white: '#e0e0e0',
+                brightWhite: '#e0e0e0'
+            };
+    </script>
+
     <script type="module">
         import { executeMemeAssemblyCode } from './scripts/execute.js';
 
         let termInputAllowed = false;
 
 
-        var term = new Terminal();
+        var term = new Terminal({
+            theme: terminalTheme,
+        });
         term.open(document.getElementById('terminal'));
         term.write('This is the MemeAssembly terminal. Run your code to see some output.\n\r');
 
@@ -123,14 +157,14 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
             let input = document.querySelector('#input-text');
 
             try {
-            await executeMemeAssemblyCode(input.value,
-                writeLineWrap,
-                writeWrap,
-                function () {
-                    throw "read not yet implemented in the UI, so the syscall works but the UI doesn't support it yet"
-                }
-            );
-            }catch(e) {
+                await executeMemeAssemblyCode(input.value,
+                    writeLineWrap,
+                    writeWrap,
+                    function () {
+                        throw "read not yet implemented in the UI, so the syscall works but the UI doesn't support it yet"
+                    }
+                );
+            } catch (e) {
                 writeLineWrap("Error: " + String(e))
             }
         }
