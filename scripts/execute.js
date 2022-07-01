@@ -110,8 +110,18 @@ export async function executeMemeAssemblyCode(
     });
 
     // Add a hook for syscalls
+    // This hook is actually called *twice* by the engine, I'm not 100% sure why it happens.
+    // To prevent this we just handle every second syscall
+    let is_first_call = true;
     unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
         let syscall_num = handle.reg_read_i64(uc.X86_REG_RAX);
+
+        if (!is_first_call) {
+            is_first_call = true;
+            return;
+        }
+        is_first_call = false;
+
         let rdi = handle.reg_read_i64(uc.X86_REG_RDI);
         let rsi = handle.reg_read_i64(uc.X86_REG_RSI);
         let rdx = handle.reg_read_i64(uc.X86_REG_RDX);
@@ -142,7 +152,6 @@ export async function executeMemeAssemblyCode(
                 }
 
                 let result_buf = handle.mem_read(rsi, rdx);
-
                 let result_str = new TextDecoder().decode(result_buf);
 
                 syscallWrite(result_str);

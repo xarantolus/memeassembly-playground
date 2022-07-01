@@ -8,7 +8,7 @@ export async function assembleX86Assembly(inputText, instr_start_address, data_s
     try {
         return mod.assemble(inputText, instr_start_address, data_start_address, entrypoint || "main");
     } catch (e) {
-        throw String(e) + (typeof e === "object" ? JSON.stringify(e, null, "    ") : '');
+        throw "assembling x86_64 GNU Assembly: " + String(e) + (typeof e === "object" ? JSON.stringify(e, null, "    ") : '');
     }
 }
 

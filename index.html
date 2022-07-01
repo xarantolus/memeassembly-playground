@@ -103,11 +103,13 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
         };
 
         term.onKey(function (e) {
+            console.log("onkey: " + e)
             if (!termInputAllowed) return;
             term.write(normalizeKey(e.key));
         });
 
         function writeWrap(str) {
+            console.log("writing: " + str);
             term.write(normalizeKey(str));
         }
         function writeLineWrap(str) {
@@ -117,13 +119,17 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
         async function executeInput() {
             let input = document.querySelector('#input-text');
 
+            try {
             await executeMemeAssemblyCode(input.value,
                 writeLineWrap,
                 writeWrap,
                 function () {
-                    return "a";
+                    throw "read not yet implemented in the UI, so the syscall works but the UI doesn't support it yet"
                 }
             );
+            }catch(e) {
+                writeLineWrap("Error: " + String(e))
+            }
         }
 
         document.querySelector("#run-button").addEventListener('click', () => executeInput());

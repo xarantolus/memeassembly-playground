@@ -27,9 +27,8 @@ export async function translateMemeAssemblyCode(code, outputCallback) {
         const exitCode = await module.callMain([...args]);
 
         outputCallback(`Compiler exited with code ${exitCode} (${exitCode == 0 ? 'Success' : 'Failure'})`);
-
         if (exitCode !== 0) {
-            return;
+            throw "Compilation failed";
         }
 
         try {
@@ -51,5 +50,5 @@ export async function translateMemeAssemblyCode(code, outputCallback) {
         }
     }
 
-    return await compileWrap();
+    return compileWrap();
 }
