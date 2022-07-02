@@ -4,6 +4,10 @@ set -euo pipefail
 # Create output dir
 mkdir -p dependencies
 
+echo "::group::Downloading language configuration"
+./build/download_language_config.sh
+echo "::endgroup::"
+
 echo "::group::Installing Emscripten"
 ./build/install_emcc.sh
 source "/opt/emsdk/emsdk_env.sh"
