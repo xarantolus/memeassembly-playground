@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "::group::Building TypeScript files"
+npm i
+npm run build
+echo "::endgroup::"
+
 # Create output dir
 mkdir -p dependencies
 
@@ -15,11 +20,6 @@ echo "::endgroup::"
 
 echo "::group::Installing wasm-pack"
 ./build/install_wasm_pack.sh
-echo "::endgroup::"
-
-
-echo "::group::Installing xterm.js"
-./build/install_xtermjs.sh
 echo "::endgroup::"
 
 echo "::group::Building MemeAssembly"

@@ -1,17 +1,21 @@
-import { assembleX86Assembly } from './assemble.js';
+import { AssemblerResult } from './assemble';
 
-function next_page_size(byte_size) {
-    return Math.ceil(byte_size / 4096) * 4096
+declare const uc;
+
+function next_page_size(byte_size: number | bigint): number {
+    byte_size = (typeof byte_size == 'number') ? byte_size : Number(byte_size);
+
+    return Math.ceil(byte_size / 4096) * 4096;
 }
 
-function hex(addr) {
+function hex(addr: number | bigint) {
     return "0x" + addr.toString(16);
 }
 
 const base_return_arr = Uint8Array.from([0x00, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 const base_return_addr = 0x9000;
 
-function generate_arr(length) {
+function generate_arr(length: number) {
 
     let arr = new Uint8Array(length);
     for (let i = 0; i < length; i++) {
@@ -22,44 +26,22 @@ function generate_arr(length) {
 }
 
 export async function executeMemeAssemblyCode(
-    translateMemeAssemblyCode,
-    codeInput,
-    lineCallback,
-    syscallWrite,
-    syscallRead
+    translateMemeAssemblyCode: (code: string, compilerOutputLineCallback: (l: string) => void) => Promise<string>,
+    assembleX86Code: (inputText: string, instr_start_address: bigint, data_start_address: bigint, entrypoint: string | null | undefined) => Promise<AssemblerResult>,
+    codeInput: string,
+    lineCallback: (l: string) => void,
+    syscallWrite: (r: string) => void,
+    syscallRead: (c: number) => string,
 ) {
     let x86Code = await translateMemeAssemblyCode(codeInput, lineCallback);
+    console.log("Translated output:\n", x86Code);
 
-    // n suffix => BigInt constants
     const code_start = 0x100000;
     const stack_start = 0x10000;
     const data_start = 0x1000;
 
-    console.log("Translated output:\n", x86Code);
+    let x86Assembled = await assembleX86Code(x86Code, BigInt(code_start), BigInt(data_start), "main");
 
-    let x86Assembled = await assembleX86Assembly(x86Code, BigInt(code_start), BigInt(data_start), "main");
-    /*
-    x86Assembled = {
-        "code": [
-            72,
-            184,
-            ...,
-            110,
-            195
-        ],
-        "code_start_address": 8192,
-        "entrypoint_address": 8252,
-        "data_start_address": 4096,
-        "data_section_size": 8,
-        "data_section": [
-            {
-                "label": ".LCharacter",
-                "offset": 0,
-                "size": 8
-            }
-        ]
-    }
-    */
     console.log("Compiled output:\n", x86Assembled);
 
     let interpretableCode = Uint8Array.from(x86Assembled.code);
@@ -165,7 +147,7 @@ export async function executeMemeAssemblyCode(
 
 
     console.log("Creating data section, start =", hex(data_start), "minSize =", x86Assembled.data_section_size);
-    unicorn_engine.mem_map(data_start, next_page_size(x86Assembled.data_section_size), uc.PROT_ALL);
+    unicorn_engine.mem_map(data_start, (next_page_size(x86Assembled.data_section_size)), uc.PROT_ALL);
 
     // Set up some stack space & set ptr in RSP
     let stack_len = 8 * 1024;
@@ -179,18 +161,16 @@ export async function executeMemeAssemblyCode(
 
     // Write the code to memory
     console.log("Writing", interpretableCode.length, "bytes of code to memory");
-    unicorn_engine.mem_map(x86Assembled.code_start_address, next_page_size(interpretableCode.length), uc.PROT_ALL);
-    unicorn_engine.mem_write(x86Assembled.code_start_address, interpretableCode);
-
-    // 0x11ff8 = 0x10000 + 0x01ff8
+    unicorn_engine.mem_map(Number(x86Assembled.code_start_address), next_page_size(interpretableCode.length), uc.PROT_ALL);
+    unicorn_engine.mem_write(Number(x86Assembled.code_start_address), interpretableCode);
 
 
     // Start at the entry point (usually the "main" symbol)
-    console.log("Executing code starting at", hex(code_start), ", setting rip for main to", hex(x86Assembled.entrypoint_address), "(offset", x86Assembled.entrypoint_address - code_start + ")");
+    console.log("Executing code starting at", hex(code_start), ", setting rip for main to", hex(x86Assembled.entrypoint_address), "(offset", Number(x86Assembled.entrypoint_address) - code_start + ")");
     try {
         // The timeout option doesn't work in webassembly; however we can restrict the number of instructions to run (in case of infinite loops)
         let max_instructions = 500000;
-        unicorn_engine.emu_start(x86Assembled.entrypoint_address, x86Assembled.code_start_address + interpretableCode.length, 0, max_instructions);
+        unicorn_engine.emu_start(Number(x86Assembled.entrypoint_address), Number(x86Assembled.code_start_address) + interpretableCode.length, 0, max_instructions);
 
         if (!normal_end) {
             throw 'Max instruction count of ' + max_instructions + ' exceeded (infinite loop protection)';

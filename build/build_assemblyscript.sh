@@ -14,3 +14,4 @@ make
 
 cp "pkg/assembly_script.js" "$BASE_DIR/dependencies/assembly_script.js"
 cp "pkg/assembly_script_bg.wasm" "$BASE_DIR/dependencies/assembly_script_bg.wasm"
+cp pkg/*.ts "$BASE_DIR/dependencies"
