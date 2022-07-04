@@ -1,4 +1,4 @@
-import '../node_modules/xterm/lib/xterm.js';
+import '../dependencies/xterm.js';
 
 const terminalTheme = {
     foreground: '#EAEAEA',

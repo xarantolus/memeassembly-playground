@@ -7,10 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MemeAssembly WASM Compiler</title>
 
-    <script src="dependencies/unicorn-x86.min.js"></script>
-
-    <link rel="stylesheet" href="node_modules/xterm/css/xterm.css">
-
 </head>
 
 <body>
@@ -117,8 +113,9 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
         }
     </style>
 
-
-    <script src="node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+    <link rel="stylesheet" href="dependencies/xterm.css">
+    <script src="dependencies/xterm-addon-fit.js"></script>
+    <script src="dependencies/unicorn-x86.min.js"></script>
     <script type="module">
         import { executeMemeAssemblyCode } from './scripts/execute.js';
         import { MemeAsmWrapper } from './scripts/translate.js';

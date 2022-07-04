@@ -1,4 +1,5 @@
 dependencies
-terminal/node_modules
 node_modules
 scripts/*.js
+.vscode
+deploy

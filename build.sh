@@ -22,6 +22,10 @@ echo "::group::Installing wasm-pack"
 ./build/install_wasm_pack.sh
 echo "::endgroup::"
 
+echo "::group::Installing xterm"
+./build/install_xterm.sh
+echo "::endgroup::"
+
 echo "::group::Building MemeAssembly"
 ./build/build_memeassembly.sh
 echo "::endgroup::"
