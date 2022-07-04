@@ -31,7 +31,7 @@ export async function executeMemeAssemblyCode(
     codeInput: string,
     lineCallback: (l: string) => void,
     syscallWrite: (r: string) => void,
-    syscallRead: (c: number) => string,
+    syscallRead: (c: number) => Promise<Uint8Array>,
 ) {
     let x86Code = await translateMemeAssemblyCode(codeInput, lineCallback);
     console.log("Translated output:\n", x86Code);
@@ -81,20 +81,28 @@ export async function executeMemeAssemblyCode(
         return false;
     });
 
+
+    let codeOffset = Number(x86Assembled.entrypoint_address);
+
     // This hook prevents crashing when we pop an invalid address from the stack at the end
     unicorn_engine.hook_add(uc.HOOK_CODE, function (handle, addr_lo, addr_hi, size) {
         if (addr_lo == base_return_addr && addr_hi == 0 && size <= 0) {
             console.log("Accessed instructions at the marked end return point, so now it's over")
             handle.emu_stop();
             normal_end = true;
+            codeOffset = -1;
             return;
         }
     });
+
 
     // Add a hook for syscalls
     // This hook is actually called *twice* by the engine, I'm not 100% sure why it happens.
     // To prevent this we just handle every second syscall
     let is_first_call = true;
+    let syscallBuffer = new Uint8Array();
+    let syscallReadCount = 0;
+
     unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
         let syscall_num = handle.reg_read_i64(uc.X86_REG_RAX);
 
@@ -115,15 +123,25 @@ export async function executeMemeAssemblyCode(
                     throw 'READ syscall: cannot read from non-stdin (!= 0) fds, but tried ' + rdi;
                 }
 
-                // Ask for 'count' in rdx elements, should return string of that length
-                // TODO: What happens if we input multi-byte chars? On linux this just leads to two 1-byte read-syscalls for MemeAssembly code; so maybe add a buffer here
-                let result = syscallRead(rdx);
+                if (syscallBuffer.byteLength >= rdx) {
+                    handle.mem_write(rsi, syscallBuffer.slice(0, rdx));
+                    syscallBuffer = syscallBuffer.slice(rdx);
 
-                let result_bytes = new TextEncoder().encode(result);
+                    return;
+                }
 
-                // Write at most rdx bytes of result
-                handle.mem_write(rsi, result_bytes.slice(0, rdx));
+                // Basically stop here, then let the loop later fill the buffer and then continue
+                // This is necessary because we cannot call async functions from here, which is quite annoying
+                codeOffset = handle.reg_read_i64(uc.X86_REG_RIP);
 
+                //Ask for the buffer to be filled as much as necessary
+                syscallReadCount = rdx - syscallBuffer.byteLength;
+
+                // Reset state
+                is_first_call = true;
+
+                handle.emu_stop();
+                console.log("stopped emu");
                 break;
             }
             case 1: {
@@ -170,7 +188,16 @@ export async function executeMemeAssemblyCode(
     try {
         // The timeout option doesn't work in webassembly; however we can restrict the number of instructions to run (in case of infinite loops)
         let max_instructions = 500000;
-        unicorn_engine.emu_start(Number(x86Assembled.entrypoint_address), Number(x86Assembled.code_start_address) + interpretableCode.length, 0, max_instructions);
+
+        // Since we cannot call syscallRead from the actual syscall handler, we always stop execution and restart it after we put something in the buffer
+        while(true) {
+            unicorn_engine.emu_start(codeOffset, Number(x86Assembled.code_start_address) + interpretableCode.length, 0, max_instructions);
+            if (normal_end || codeOffset < 0) {
+                break;
+            }
+
+            syscallBuffer = await syscallRead(syscallReadCount);
+        }
 
         if (!normal_end) {
             throw 'Max instruction count of ' + max_instructions + ' exceeded (infinite loop protection)';
@@ -183,5 +210,6 @@ export async function executeMemeAssemblyCode(
 
     // Program output
     let irax = unicorn_engine.reg_read_i64(uc.X86_REG_RAX);
-    console.log("RAX value:", irax);
+
+    lineCallback(`Program ended with exit code ${irax}`);
 }

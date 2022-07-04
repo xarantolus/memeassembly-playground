@@ -33,11 +33,18 @@ const terminalTheme = {
 declare class Terminal {
     constructor(a: any);
     open(a: HTMLElement);
-    write(s: string);
+    write(s: string | Uint8Array);
     onKey(a: any);
 
     options: any;
-};
+    loadAddon(a: any);
+    scrollToBottom();
+    clear();
+    focus();
+}
+
+declare var FitAddon;
+
 
 export class MemeAssemblyTerminal {
     private term: Terminal;
@@ -52,17 +59,24 @@ export class MemeAssemblyTerminal {
         this.term = new Terminal({
             theme: terminalTheme,
         });
-        this.term.open(element);
-
-        // Write init message
-        this.term.write('This is the MemeAssembly terminal. Run your code to see some output.\n\r');
+        const fitAddon = new FitAddon.FitAddon();
+        this.term.loadAddon(fitAddon);
 
         this.inputBuffer = new Uint8Array();
+        this.inputBufferEventElement = document.createElement("div");
 
-        this.inputBufferEventElement = document.createElement('div');
-
-        this.setInputAllowed(false);
+        this.term.open(element);
         this.term.onKey(this.handleKeyInput(this));
+
+        window.addEventListener('resize', function () {
+            fitAddon.fit();
+        });
+        fitAddon.fit();
+
+        console.log(fitAddon.proposeDimensions())
+
+        // Write init message
+        this.term.write('This the terminal 👋  Run your code to see some output.\n\r');
     }
 
     private mergeBuffers = (arrayOne: Uint8Array, arrayTwo: Uint8Array) => {
@@ -73,15 +87,18 @@ export class MemeAssemblyTerminal {
         return mergedArray;
     }
 
+
     private handleKeyInput = (thisref: MemeAssemblyTerminal) => {
         return (input: { key: string; domEvent: KeyboardEvent; }, _: void) => {
             // Length is 1 for printable characters, e.g. "a", "ö" etc; however not for special keys
             if (!thisref.inputAllowed || input.key.length !== 1) return;
 
-            let inputBytes = new TextEncoder().encode(input.key);
+
+            let inputBytes = new TextEncoder().encode(input.key.replace("\r", "\n"));
             if (inputBytes.length === 0) return;
 
             thisref.inputBuffer = this.mergeBuffers(thisref.inputBuffer, inputBytes);
+
             if (thisref.inputBuffer.length === 0) return;
 
             const event = new Event('buffer');
@@ -93,25 +110,25 @@ export class MemeAssemblyTerminal {
         return new TextDecoder().decode(Uint8Array.from([byte]));
     }
 
-    public readByte = () => {
+    public readByte = (thisref: MemeAssemblyTerminal): Promise<number> => {
         let readFirstBufferByte = () => {
-            let byte = this.inputBuffer[0];
-            this.inputBuffer = this.inputBuffer.slice(1);
-            return Promise.resolve(this.byteToStr(byte));
+            let byte = thisref.inputBuffer[0];
+            thisref.inputBuffer = thisref.inputBuffer.slice(1);
+            return Promise.resolve(byte);
         }
 
-        if (this.inputBuffer.length > 0) {
+        if (thisref.inputBuffer.length > 0) {
             return readFirstBufferByte();
         }
 
-        let ia = this.setInputAllowed;
+        let ia = thisref.setInputAllowed;
         ia(true);
 
         // The next time something is put in the buffer we return it
-        return new Promise((resolve) => {
-            this.inputBufferEventElement.addEventListener('buffer', async function () {
+        return new Promise<number>((resolve) => {
+            thisref.inputBufferEventElement.addEventListener('buffer', async function () {
                 ia(false);
-                resolve(await readFirstBufferByte());
+                resolve(readFirstBufferByte());
             }, {
                 once: true,
             });
@@ -123,17 +140,33 @@ export class MemeAssemblyTerminal {
         this.term.options.cursorBlink = allowed;
     }
 
-
     private normalize = (input: string) => {
         return input.replace("\n", "\n\r")
     }
 
+    public clear() {
+        this.term.clear();
+    }
+
+    public focus() {
+        this.term.focus();
+    }
+
+    public writeByte = (input: number) => {
+        this.term.write(Uint8Array.from([input]));
+        if (input == '\n'.charCodeAt(0)) {
+            this.term.write('\r');
+        }
+    }
+
     public write = (input: string) => {
         this.term.write(this.normalize(input));
+        this.term.scrollToBottom();
     }
 
     public writeLine = (line: string) => {
         this.term.write(this.normalize(line) + '\n\r');
+        this.term.scrollToBottom()
     }
 }
 
