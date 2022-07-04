@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "::group::Installing dependencies"
+npm i
+echo "::endgroup::"
+
 # Create output dir
 mkdir -p dependencies
 
@@ -34,6 +38,5 @@ echo "::group::Building Unicorn Engine"
 echo "::endgroup::"
 
 echo "::group::Building TypeScript files"
-npm i
 npm run build
 echo "::endgroup::"
