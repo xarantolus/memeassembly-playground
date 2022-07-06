@@ -73,8 +73,6 @@ export class MemeAssemblyTerminal {
         });
         fitAddon.fit();
 
-        console.log(fitAddon.proposeDimensions())
-
         // Write init message
         this.term.write('This the terminal 👋  Run your code to see some output.\n\r');
     }
