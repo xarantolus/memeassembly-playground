@@ -99,22 +99,21 @@ export async function executeMemeAssemblyCode(
     // Add a hook for syscalls
     // This hook is actually called *twice* by the engine, I'm not 100% sure why it happens.
     // To prevent this we just handle every second syscall
-    let is_first_call = true;
     let syscallBuffer = new Uint8Array();
     let syscallReadCount = 0;
 
-    unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
-        let syscall_num = handle.reg_read_i64(uc.X86_REG_RAX);
+    let readInterrupt = "interrupt: read";
+    let writeInterrupt = "interrupt: write";
 
-        if (!is_first_call) {
-            is_first_call = true;
-            return;
-        }
-        is_first_call = false;
+    let syscallWriteStr = "";
+    const syscallHandler = function (handle) {
+        let syscall_num = handle.reg_read_i64(uc.X86_REG_RAX);
 
         let rdi = handle.reg_read_i64(uc.X86_REG_RDI);
         let rsi = handle.reg_read_i64(uc.X86_REG_RSI);
         let rdx = handle.reg_read_i64(uc.X86_REG_RDX);
+
+        codeOffset = handle.reg_read_i64(uc.X86_REG_RIP) + 2;
 
         switch (syscall_num) {
             case 0: {
@@ -124,25 +123,21 @@ export async function executeMemeAssemblyCode(
                 }
 
                 if (syscallBuffer.byteLength >= rdx) {
+                    console.log("read: have enough in buf");
+
                     handle.mem_write(rsi, syscallBuffer.slice(0, rdx));
                     syscallBuffer = syscallBuffer.slice(rdx);
 
                     return;
                 }
 
-                // Basically stop here, then let the loop later fill the buffer and then continue
-                // This is necessary because we cannot call async functions from here, which is quite annoying
-                codeOffset = handle.reg_read_i64(uc.X86_REG_RIP);
+                console.log("read: need more in buf");
 
                 //Ask for the buffer to be filled as much as necessary
                 syscallReadCount = rdx - syscallBuffer.byteLength;
 
-                // Reset state
-                is_first_call = true;
-
-                handle.emu_stop();
-                console.log("stopped emu");
-                break;
+                console.log("stopping emu ...");
+                throw readInterrupt;
             }
             case 1: {
                 // WRITE syscall MUST write to stdout or stderr
@@ -152,17 +147,40 @@ export async function executeMemeAssemblyCode(
                 }
 
                 let result_buf = handle.mem_read(rsi, rdx);
-                let result_str = new TextDecoder().decode(result_buf);
+                syscallWriteStr = new TextDecoder().decode(result_buf);
 
-                syscallWrite(result_str);
-
-                break;
+                throw writeInterrupt;
             }
             default:
                 throw 'Syscall: unsupported RAX value ' + syscall_num;
         }
+    };
+
+    let stopped = false;
+    unicorn_engine.hook_add(uc.HOOK_INSN, function (handle) {
+        if (stopped) return;
+
+        try {
+            syscallHandler(handle);
+        } catch (e) {
+            stopped = true;
+            handle.emu_stop();
+            throw e;
+        }
     }, null, 1, 0, uc.X86_INS_SYSCALL);
 
+    // unicorn_engine.hook_add(uc.HOOK_CODE, function (handle) {
+    //     // RIP in this case points current instruction, let's see if it's a syscall
+    //     let rip = handle.reg_read_i64(uc.X86_REG_RIP);
+    //     let mem = handle.mem_read(rip, 2);
+
+    //     // Syscall: 0x0f05
+    //     // Technically there might be a longer instruction that starts with this, but I don't care
+    //     if (mem[0] == 0xf && mem[1] == 0x5) {
+    //         console.log("calling syscall")
+    //         syscallHandler(handle);
+    //     }
+    // }, { c: false }, 1, 0);
 
     console.log("Creating data section, start =", hex(data_start), "minSize =", x86Assembled.data_section_size);
     unicorn_engine.mem_map(data_start, (next_page_size(x86Assembled.data_section_size)), uc.PROT_ALL);
@@ -190,13 +208,29 @@ export async function executeMemeAssemblyCode(
         let max_instructions = 500000;
 
         // Since we cannot call syscallRead from the actual syscall handler, we always stop execution and restart it after we put something in the buffer
-        while(true) {
-            unicorn_engine.emu_start(codeOffset, Number(x86Assembled.code_start_address) + interpretableCode.length, 0, max_instructions);
-            if (normal_end || codeOffset < 0) {
-                break;
+        while (true) {
+            try {
+                console.log(normal_end, codeOffset);
+                
+                unicorn_engine.emu_start(codeOffset, Number(x86Assembled.code_start_address) + interpretableCode.length, 0, max_instructions);
+                if (normal_end || codeOffset < 0) {
+                    break;
+                }
+            } catch (i) {
+                console.log(i);
+                switch (i) {
+                    case readInterrupt:
+                        syscallBuffer = await syscallRead(syscallReadCount);
+                        break;
+                    case writeInterrupt:
+                        syscallWrite(syscallWriteStr);
+                        continue;
+                    default:
+                        throw i;
+                }
             }
 
-            syscallBuffer = await syscallRead(syscallReadCount);
+            stopped = false;
         }
 
         if (!normal_end) {

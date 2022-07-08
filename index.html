@@ -53,62 +53,33 @@
             grid-area: 5 / 1 / 6 / 2;
         }
     </style>
-
-    <link rel="stylesheet" href="dependencies/xterm.css">
-    <script src="dependencies/xterm-addon-fit.js"></script>
-    <script src="dependencies/unicorn-x86.min.js"></script>
-    <script type="module">
-        import { executeMemeAssemblyCode } from './scripts/execute.js';
-        import { MemeAsmWrapper } from './scripts/translate.js';
-        import { MemeAssemblyTerminal } from './scripts/terminal.js';
-        import { AssemblerResult, downloadX86Assembler } from './scripts/assemble.js';
-
-        let terminal = new MemeAssemblyTerminal(document.getElementById("terminal"));
-        let translateMemeAssemblyCode = await MemeAsmWrapper();
-        let assembleX86Code = await downloadX86Assembler();
-
-
-        async function executeInput() {
-            let input = document.querySelector('#input-text');
-
-            terminal.clear();
-
-            try {
-                await executeMemeAssemblyCode(
-                    translateMemeAssemblyCode,
-                    assembleX86Code,
-                    input.value,
-                    terminal.writeLine,
-                    terminal.write,
-                    async function (count) {
-                        terminal.focus();
-
-                        let bytes = [];
-                        while (count--) {
-                            let nb = await terminal.readByte(terminal);
-                            terminal.writeByte(nb);
-                            bytes.push(nb);
-                        }
-                        return Uint8Array.from(bytes);
-                    },
-                );
-            } catch (e) {
-                console.log("Error:", e);
-                terminal.writeLine("Error: " + String(e))
-            }
-        }
-
-        document.querySelector("#run-button").addEventListener('click', () => executeInput());
-    </script>
-
     <div class="parent">
         <textarea placeholder="Enter your MemeAssembly code here..." id="input-text">
+I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
+    let me in. LET ME IIIIIIIIN al
+    let me in. LET ME IIIIIIIIN bl
+    let me in. LET ME IIIIIIIIN cl
+
+    what can I say except \n
+
+    what can I say except cl
+    what can I say except bl
+    what can I say except al
+
+    what can I say except \n
+
+    I see this as an absolute win
+</textarea>
+
+            <!-- What the hell happened here? This program reads a line of input and prints it in reverse
 I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
 
     sneak 100 rax
 
     What the hell happened here? rcx counts how many characters have been read
     sneak 100 rcx
+
+    print_prompt: whomst has summoned the almighty one
 
     upgrade
 
@@ -153,13 +124,110 @@ I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
 
     I see this as an absolute win
 
-            </textarea>
+
+I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun print_prompt
+    what can I say except E
+    what can I say except n
+    what can I say except t
+    what can I say except e
+    what can I say except r
+    what can I say except space
+    what can I say except a
+    what can I say except space
+    what can I say except l
+    what can I say except i
+    what can I say except n
+    what can I say except e
+    what can I say except space
+    what can I say except o
+    what can I say except f
+    what can I say except space
+    what can I say except t
+    what can I say except e
+    what can I say except x
+    what can I say except t
+    what can I say except space
+    what can I say except t
+    what can I say except o
+    what can I say except space
+    what can I say except r
+    what can I say except e
+    what can I say except v
+    what can I say except e
+    what can I say except r
+    what can I say except s
+    what can I say except e
+    what can I say except :
+    what can I say except \n
+
+    I see this as an absolute win
+
+            </textarea> -->
         <div id="terminal"></div>
 
         <div id="options">
             <button id="run-button">Run</button>
         </div>
     </div>
+
+    <link rel="stylesheet" href="dependencies/xterm.css">
+    <script src="dependencies/xterm-addon-fit.js"></script>
+    <script src="dependencies/unicorn-x86.min.js"></script>
+    <script type="module">
+        import { executeMemeAssemblyCode } from './scripts/execute.js';
+        import { MemeAsmWrapper } from './scripts/translate.js';
+        import { MemeAssemblyTerminal } from './scripts/terminal.js';
+        import { AssemblerResult, downloadX86Assembler } from './scripts/assemble.js';
+
+        let terminal = new MemeAssemblyTerminal(document.getElementById("terminal"));
+        let translateMemeAssemblyCode = await MemeAsmWrapper();
+        let assembleX86Code = await downloadX86Assembler();
+
+
+        let currentlyRunning = false;
+
+        async function executeInput() {
+            if (currentlyRunning) return;
+            currentlyRunning = true;
+            document.querySelector("#run-button").disabled = true;
+
+            let input = document.querySelector('#input-text');
+
+            terminal.clear();
+
+            try {
+                await executeMemeAssemblyCode(
+                    translateMemeAssemblyCode,
+                    assembleX86Code,
+                    input.value,
+                    terminal.writeLine,
+                    function(str) {
+                        console.log(str);
+                        terminal.write(str);
+                    },
+                    async function (count) {
+                        terminal.focus();
+
+                        let bytes = [];
+                        while (count--) {
+                            let nb = await terminal.readByte(terminal);
+                            terminal.writeByte(nb);
+                            bytes.push(nb);
+                        }
+                        return Uint8Array.from(bytes);
+                    },
+                );
+            } catch (e) {
+                console.log("Error:", e);
+                terminal.writeLine("Error: " + String(e))
+            }
+
+            currentlyRunning = false;
+            document.querySelector("#run-button").disabled = false;
+        }
+
+        document.querySelector("#run-button").addEventListener('click', () => executeInput());
+    </script>
 </body>
 
 </html>
