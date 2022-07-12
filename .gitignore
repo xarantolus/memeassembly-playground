@@ -1,5 +1,6 @@
 dependencies
 node_modules
-scripts/*.js
+scripts/**.js
+scripts/**/**.js
 .vscode
 deploy
