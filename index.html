@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemeAssembly WASM Compiler</title>
+
+</head>
+
+<body>
+    <style>
+        html,
+        body,
+        parent,
+        div {
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            height: 100%;
+            min-height: 100%;
+        }
+
+        @media (prefers-color-scheme: dark) {
+
+            body,
+            textarea {
+                background: #111;
+                color: #fff;
+            }
+        }
+
+        .parent {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            grid-column-gap: 0px;
+            grid-row-gap: 0px;
+        }
+
+        #input-text {
+            grid-area: 1 / 1 / 5 / 6;
+        }
+
+        #terminal {
+            grid-area: 5 / 2 / 6 / 6;
+        }
+
+        #options {
+            grid-area: 5 / 1 / 6 / 2;
+        }
+    </style>
+
+    <link rel="stylesheet" href="dependencies/xterm.css">
+    <script src="dependencies/xterm-addon-fit.js"></script>
+    <script src="dependencies/unicorn-x86.min.js"></script>
+    <script type="module">
+        import { executeMemeAssemblyCode } from './scripts/execute.js';
+        import { MemeAsmWrapper } from './scripts/translate.js';
+        import { MemeAssemblyTerminal } from './scripts/terminal.js';
+        import { AssemblerResult, downloadX86Assembler } from './scripts/assemble.js';
+
+        let terminal = new MemeAssemblyTerminal(document.getElementById("terminal"));
+        let translateMemeAssemblyCode = await MemeAsmWrapper();
+        let assembleX86Code = await downloadX86Assembler();
+
+
+        async function executeInput() {
+            let input = document.querySelector('#input-text');
+
+            terminal.clear();
+
+            try {
+                await executeMemeAssemblyCode(
+                    translateMemeAssemblyCode,
+                    assembleX86Code,
+                    input.value,
+                    terminal.writeLine,
+                    terminal.write,
+                    async function (count) {
+                        terminal.focus();
+
+                        let bytes = [];
+                        while (count--) {
+                            let nb = await terminal.readByte(terminal);
+                            terminal.writeByte(nb);
+                            bytes.push(nb);
+                        }
+                        return Uint8Array.from(bytes);
+                    },
+                );
+            } catch (e) {
+                console.log("Error:", e);
+                terminal.writeLine("Error: " + String(e))
+            }
+        }
+
+        document.querySelector("#run-button").addEventListener('click', () => executeInput());
+    </script>
+
+    <div class="parent">
+        <textarea placeholder="Enter your MemeAssembly code here..." id="input-text">
+I like to have fun, fun, fun, fun, fun, fun, fun, fun, fun, fun main
+
+    sneak 100 rax
+
+    What the hell happened here? rcx counts how many characters have been read
+    sneak 100 rcx
+
+    upgrade
+
+        What the hell happened here? Read one character from stdin
+        let me in. LET ME IIIIIIIIN al
+
+        What the hell happened here? Check if it's the end of a line
+        corporate needs you to find the difference between al and \n
+
+        What the hell happened here? If not, we just push it to the stack (very efficient lol)
+        stonks rax
+        upvote rcx
+
+    fuck go back
+
+    they're the same picture
+
+
+    What the hell happened here? Now write what we've seen
+    banana
+
+        What the hell happened here? Check if we have reached the end of the input
+        who would win? rcx or 0
+
+        0 wins
+            What the hell happened here? rcx is <= 0, jump to end of program
+            return to monke uaaaaaua
+
+        rcx wins
+            What the hell happened here? rcx > 0, get the character and print it to stdout
+
+            not stonks rax
+            what can I say except al
+
+            downvote rcx
+
+    where banana
+
+    monke uaaaaaua
+
+    what can I say except \n
+
+    I see this as an absolute win
+
+            </textarea>
+        <div id="terminal"></div>
+
+        <div id="options">
+            <button id="run-button">Run</button>
+        </div>
+    </div>
+</body>
+
+</html>
